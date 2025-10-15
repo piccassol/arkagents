@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, MessageSquare, Zap, TrendingUp, Clock, Calendar } from 'lucide-react';
+import { BarChart3, MessageSquare, Zap, TrendingUp, Calendar } from 'lucide-react';
 import './AnalyticsDashboard.css';
 
 const API_URL = 'https://api.arktechnologies.ai';
