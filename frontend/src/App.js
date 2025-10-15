@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import AgentTemplates from './components/AgentTemplates';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 import './App.css';
 
 const API_URL = 'https://api.arktechnologies.ai';
@@ -10,13 +12,23 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentDesc, setNewAgentDesc] = useState('');
+  const [newAgentPrompt, setNewAgentPrompt] = useState('');
 
   // Load agents on mount
   useEffect(() => {
     loadAgents();
   }, []);
+
+  // Load conversation when agent is selected
+  useEffect(() => {
+    if (selectedAgent) {
+      loadConversation(selectedAgent.id);
+    }
+  }, [selectedAgent]);
 
   const loadAgents = async () => {
     try {
@@ -28,6 +40,19 @@ function App() {
     }
   };
 
+  const loadConversation = async (agentId) => {
+    try {
+      const response = await fetch(`${API_URL}/api/agents/${agentId}/conversation`);
+      const data = await response.json();
+      
+      // The data.conversation is already in the right format
+      setMessages(data.conversation || []);
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      setMessages([]);
+    }
+  };
+
   const createAgent = async () => {
     try {
       const response = await fetch(`${API_URL}/api/agents/create`, {
@@ -35,7 +60,8 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newAgentName,
-          description: newAgentDesc
+          description: newAgentDesc,
+          system_prompt: newAgentPrompt || undefined
         })
       });
       const agent = await response.json();
@@ -43,10 +69,33 @@ function App() {
       setShowCreateAgent(false);
       setNewAgentName('');
       setNewAgentDesc('');
+      setNewAgentPrompt('');
       setSelectedAgent(agent);
       setMessages([]);
     } catch (error) {
       console.error('Error creating agent:', error);
+    }
+  };
+
+  const createAgentFromTemplate = async (template) => {
+    try {
+      const response = await fetch(`${API_URL}/api/agents/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: template.name,
+          description: template.description,
+          system_prompt: template.systemPrompt
+        })
+      });
+      const agent = await response.json();
+      setAgents([...agents, agent]);
+      setShowTemplates(false);
+      setSelectedAgent(agent);
+      setMessages([]);
+    } catch (error) {
+      console.error('Error creating agent from template:', error);
+      alert('Failed to create agent. Please try again.');
     }
   };
 
@@ -59,11 +108,14 @@ function App() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/agents/${selectedAgent.id}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inputMessage })
-      });
+      const response = await fetch(
+        `${API_URL}/api/agents/${selectedAgent.id}/chat`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: inputMessage })
+        }
+      );
       const data = await response.json();
 
       setMessages(prev => [...prev, {
@@ -81,6 +133,33 @@ function App() {
     }
   };
 
+  const clearConversation = async () => {
+    if (!selectedAgent) return;
+    if (!window.confirm('Clear all messages with this agent?')) return;
+
+    // For in-memory storage, just clear locally
+    setMessages([]);
+  };
+
+  // If showing templates, render that instead
+  if (showTemplates) {
+    return (
+      <AgentTemplates
+        onUseTemplate={createAgentFromTemplate}
+        onClose={() => setShowTemplates(false)}
+      />
+    );
+  }
+
+  // If showing analytics, render that instead
+  if (showAnalytics) {
+    return (
+      <AnalyticsDashboard
+        onClose={() => setShowAnalytics(false)}
+      />
+    );
+  }
+
   return (
     <div className="App">
       {/* Sidebar */}
@@ -94,6 +173,41 @@ function App() {
           + New Agent
         </button>
 
+        <button
+          className="templates-btn"
+          onClick={() => setShowTemplates(true)}
+          style={{
+            marginTop: '10px',
+            width: '100%',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          📚 Browse Templates
+        </button>
+
+        <button
+          onClick={() => setShowAnalytics(true)}
+          style={{
+            marginTop: '10px',
+            width: '100%',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          📊 Analytics
+        </button>
+
         <div className="agents-list">
           {agents.map(agent => (
             <div
@@ -101,7 +215,6 @@ function App() {
               className={`agent-item ${selectedAgent?.id === agent.id ? 'active' : ''}`}
               onClick={() => {
                 setSelectedAgent(agent);
-                setMessages([]);
               }}
             >
               <div className="agent-name">{agent.name}</div>
@@ -116,8 +229,26 @@ function App() {
         {selectedAgent ? (
           <>
             <div className="chat-header">
-              <h3>{selectedAgent.name}</h3>
-              <p>{selectedAgent.description}</p>
+              <div>
+                <h3>{selectedAgent.name}</h3>
+                <p>{selectedAgent.description}</p>
+              </div>
+              {messages.length > 0 && (
+                <button
+                  onClick={clearConversation}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  🗑️ Clear Chat
+                </button>
+              )}
             </div>
 
             <div className="messages">
@@ -139,6 +270,8 @@ function App() {
 
             <div className="input-area">
               <input
+                id="chat-input"
+                name="message"
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
@@ -155,6 +288,22 @@ function App() {
           <div className="empty-state">
             <h2>Welcome to ArkAgents</h2>
             <p>Select an agent or create a new one to get started</p>
+            <button
+              onClick={() => setShowTemplates(true)}
+              style={{
+                marginTop: '20px',
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600'
+              }}
+            >
+              Browse Agent Templates
+            </button>
           </div>
         )}
       </div>
@@ -165,16 +314,28 @@ function App() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>Create New Agent</h3>
             <input
+              id="agent-name"
+              name="agent-name"
               type="text"
               placeholder="Agent Name (e.g., Sales Assistant)"
               value={newAgentName}
               onChange={(e) => setNewAgentName(e.target.value)}
             />
             <textarea
+              id="agent-description"
+              name="agent-description"
               placeholder="Description (e.g., helps with sales outreach)"
               value={newAgentDesc}
               onChange={(e) => setNewAgentDesc(e.target.value)}
               rows={3}
+            />
+            <textarea
+              id="agent-prompt"
+              name="agent-prompt"
+              placeholder="System Prompt (optional - defines agent behavior)"
+              value={newAgentPrompt}
+              onChange={(e) => setNewAgentPrompt(e.target.value)}
+              rows={4}
             />
             <div className="modal-buttons">
               <button onClick={() => setShowCreateAgent(false)}>Cancel</button>
