@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-const API_URL = 'http://localhost:8001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
 
 function App() {
   const [agents, setAgents] = useState([]);
@@ -65,7 +65,7 @@ function App() {
         body: JSON.stringify({ message: inputMessage })
       });
       const data = await response.json();
-      
+
       setMessages(prev => [...prev, {
         role: 'assistant',
         message: data.message
@@ -86,8 +86,8 @@ function App() {
       {/* Sidebar */}
       <div className="sidebar">
         <h2>🤖 ArkAgents</h2>
-        
-        <button 
+
+        <button
           className="create-btn"
           onClick={() => setShowCreateAgent(true)}
         >
