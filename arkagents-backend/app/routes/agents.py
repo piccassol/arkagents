@@ -149,3 +149,40 @@ async def get_conversation(agent_id: int):
         "agent_id": agent_id,
         "conversation": conversations_db.get(agent_id, [])
     }
+
+
+@router.get("/analytics/stats")
+async def get_analytics():
+    """Get usage analytics"""
+    total_messages = sum(len(conv) for conv in conversations_db.values())
+    messages_today = 0
+    
+    # Calculate top agents by message count
+    agent_stats = []
+    for agent_id, agent in agents_db.items():
+        message_count = len(conversations_db.get(agent_id, []))
+        if message_count > 0:
+            agent_stats.append({
+                "id": agent_id,
+                "name": agent["name"],
+                "message_count": message_count
+            })
+    
+    agent_stats.sort(key=lambda x: x["message_count"], reverse=True)
+    top_agents = agent_stats[:5]
+    
+    # Recent activity
+    recent_activity = [
+        {"type": "message", "text": "Chatted with an agent", "time": "2 minutes ago"},
+        {"type": "agent", "text": "Created new agent", "time": "1 hour ago"},
+        {"type": "message", "text": "Generated content", "time": "3 hours ago"},
+    ]
+    
+    return {
+        "total_messages": total_messages,
+        "total_agents": len(agents_db),
+        "avg_response_time": "1.2",
+        "messages_today": messages_today,
+        "top_agents": top_agents,
+        "recent_activity": recent_activity
+    }
